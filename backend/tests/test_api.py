@@ -1,7 +1,7 @@
 def answer_items(client, session, correct: bool):
     """Answer each item correctly or incorrectly using the answer key from a probe."""
-    from app.models import Choice
-    from app.db import get_db
+    from app.db.connection import get_db
+    from app.db.models import Choice
     from app.main import app
 
     gen = app.dependency_overrides[get_db]()
@@ -162,7 +162,7 @@ def test_random_plan_ignores_roadmap(login):
 
 
 def test_sprint_plan_draws_from_interview_lists(login):
-    from app.plans import HOT_100, TOP_INTERVIEW_150
+    from app.services.plans import HOT_100, TOP_INTERVIEW_150
 
     login.patch("/api/me", json={"plan": "sprint", "daily_goal": 20})
     s = login.post("/api/sessions", json={"mode": "daily"}).json()
@@ -195,9 +195,8 @@ def test_abandoned_extra_is_reopened_and_counts_only_answers(login):
 
 
 def test_leetcode_cn_question_links_to_cn(login):
-    from app.models import Question
-
-    from app.db import get_db
+    from app.db.connection import get_db
+    from app.db.models import Question
     from app.main import app
 
     db = next(app.dependency_overrides[get_db]())

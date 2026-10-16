@@ -3,11 +3,11 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..auth import issue_session, revoke_session, verify_google_credential
-from ..clock import valid_timezone
-from ..config import SESSION_COOKIE, settings
-from ..db import get_db
-from ..models import User
+from ..core.clock import valid_timezone
+from ..core.config import SESSION_COOKIE, settings
+from ..core.security import issue_session, revoke_session, verify_google_credential
+from ..db.connection import get_db
+from ..db.models import User
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 

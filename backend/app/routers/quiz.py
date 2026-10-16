@@ -7,15 +7,15 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from .. import clock
-from ..auth import current_user
-from ..clock import local_today
-from ..db import get_db
-from ..mastery import recompute_user_mastery
-from ..models import Attempt, Choice, Company, Question, QuestionCompany, QuizSession, Topic, User
-from ..plans import get_plan
-from ..recommend import recommend
-from ..scheduling import complete_due_reviews, due_review_question_ids, schedule_reviews
+from ..core import clock
+from ..core.clock import local_today
+from ..core.security import current_user
+from ..db.connection import get_db
+from ..db.models import Attempt, Choice, Company, Question, QuestionCompany, QuizSession, Topic, User
+from ..services.mastery import recompute_user_mastery
+from ..services.plans import get_plan
+from ..services.recommend import recommend
+from ..services.scheduling import complete_due_reviews, due_review_question_ids, schedule_reviews
 
 router = APIRouter(prefix="/api/sessions", tags=["quiz"])
 

@@ -1,40 +1,24 @@
-from datetime import date
+from collections.abc import Sequence
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..mastery import recompute_user_mastery
-from ..models import (
-    Attempt, Choice, Company, Question, QuestionCompany, QuestionTopic, Topic, TopicEdge, UserTopicMastery,
-)
-from .questions import LC, QUESTIONS
-from .route import ROUTE_QUESTIONS
+from ..db.models import Attempt, Choice, Question, QuestionTopic, Topic, TopicEdge, UserTopicMastery
+from ..services.mastery import recompute_user_mastery
+from . import schema
+from .bank import QUESTIONS, validate_bank
 from .topics import EDGES, TOPICS
 
-ALL_QUESTIONS = [*QUESTIONS, *ROUTE_QUESTIONS]
 
-COMPANY = "Amazon"
-TAG_PROVENANCE = "unverified"
-TAG_OBSERVED = date(2026, 9, 28)
-
-
-def validate_question(q: dict) -> None:
-    choices = q["choices"]
-    if len(choices) != 4:
-        raise ValueError(f"{q['slug']}: expected 4 choices, got {len(choices)}")
-    optimal = [c for c in choices if c[5] == "optimal"]
-    if len(optimal) != 1:
-        raise ValueError(f"{q['slug']}: expected exactly one optimal choice")
-    if len({c[0] for c in choices}) != 4:
-        raise ValueError(f"{q['slug']}: duplicate choice labels")
-
-
-def seed(db: Session) -> None:
+def seed(db: Session, questions: Sequence[schema.Question] = QUESTIONS) -> None:
     """Idempotently load topics, the topic graph and the question bank.
 
     Topics, edges and question topic tags follow the seed, so retagging a
     question or retiring a topic here updates existing databases too.
+    Questions dropped from the bank are retired, not deleted: attempts and
+    old sessions still reference them.
     """
+    validate_bank(questions)
     existing_topics = {t.id: t for t in db.scalars(select(Topic))}
     for i, (tid, name, x, y) in enumerate(TOPICS):
         if tid in existing_topics:
@@ -55,74 +39,53 @@ def seed(db: Session) -> None:
             db.add(TopicEdge(from_topic_id=a, to_topic_id=b))
     db.flush()
 
-    company = db.scalar(select(Company).where(Company.name == COMPANY))
-    if company is None:
-        company = Company(name=COMPANY)
-        db.add(company)
-        db.flush()
-
-    # Keep tag provenance text in sync with the seed.
-    for qc in db.scalars(select(QuestionCompany).where(QuestionCompany.company_id == company.id)):
-        qc.provenance = TAG_PROVENANCE
-
-    pilot = {q["slug"] for q in QUESTIONS}
     existing = {q.slug: q for q in db.scalars(select(Question).options(selectinload(Question.topics)))}
+    wanted = {q.slug for q in questions}
+    for slug, question in existing.items():
+        question.status = "published" if slug in wanted else "retired"
     retagged = False
-    for q in ALL_QUESTIONS:
-        validate_question(q)
-        source_url = q.get("url") or LC.format(q["slug"])
-        if q["slug"] in existing:
-            question = existing[q["slug"]]
-            question.source_url, question.ref = source_url, q.get("ref")
+    for q in questions:
+        if q.slug in existing:
+            question = existing[q.slug]
+            question.source_url, question.ref = q.source_url, q.ref
             current = [t.topic_id for t in question.topics]
-            if current[:1] != q["topics"][:1] or set(current) != set(q["topics"]):
+            if current[:1] != list(q.topics[:1]) or set(current) != set(q.topics):
                 question.topics.clear()
                 db.flush()
                 question.topics = [
-                    QuestionTopic(topic_id=t, is_primary=(i == 0)) for i, t in enumerate(q["topics"])
+                    QuestionTopic(topic_id=t, is_primary=(i == 0)) for i, t in enumerate(q.topics)
                 ]
                 retagged = True
             continue
         question = Question(
-            slug=q["slug"],
-            lc_number=q["n"],
-            ref=q.get("ref"),
-            title=q["title"],
-            difficulty=q["diff"],
-            summary=q["summary"],
-            example=q["example"],
-            criterion=q["criterion"],
-            hint=q["hint"],
-            source_url=source_url,
+            slug=q.slug,
+            lc_number=q.number,
+            ref=q.ref,
+            title=q.title,
+            difficulty=q.difficulty,
+            summary=q.summary,
+            example=q.example,
+            criterion=q.criterion,
+            hint=q.hint,
+            source_url=q.source_url,
         )
         question.topics = [
-            QuestionTopic(topic_id=t, is_primary=(i == 0)) for i, t in enumerate(q["topics"])
+            QuestionTopic(topic_id=t, is_primary=(i == 0)) for i, t in enumerate(q.topics)
         ]
         question.choices = [
             Choice(
                 position=i,
-                label=c[0],
-                detail=c[1],
-                time_complexity=c[2],
-                space_complexity=c[3],
-                visual=c[4],
-                verdict=c[5],
-                explanation=c[6],
+                label=c.label,
+                detail=c.detail,
+                time_complexity=c.time,
+                space_complexity=c.space,
+                visual=c.visual,
+                verdict=c.verdict.value,
+                explanation=c.why,
             )
-            for i, c in enumerate(q["choices"])
+            for i, c in enumerate(q.choices)
         ]
         db.add(question)
-        db.flush()
-        if q["slug"] not in pilot:
-            continue
-        db.add(
-            QuestionCompany(
-                question_id=question.id,
-                company_id=company.id,
-                provenance=TAG_PROVENANCE,
-                observed_on=TAG_OBSERVED,
-            )
-        )
 
     stale = set(existing_topics) - {t[0] for t in TOPICS}
     if stale:

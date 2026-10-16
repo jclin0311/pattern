@@ -2,13 +2,13 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..analytics import dashboard_stats
-from ..auth import current_user
-from ..clock import local_today
-from ..db import get_db
-from ..llm import performance_analysis
-from ..mastery import mastery_map
-from ..models import QuestionTopic, Topic, TopicEdge, User
+from ..core.clock import local_today
+from ..core.security import current_user
+from ..db.connection import get_db
+from ..db.models import Question, QuestionTopic, Topic, TopicEdge, User
+from ..services.analysis import performance_analysis
+from ..services.mastery import mastery_map
+from ..services.stats import dashboard_stats
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -31,7 +31,8 @@ def topic_graph(user: User = Depends(current_user), db: Session = Depends(get_db
         topic_id: n
         for topic_id, n in db.execute(
             select(QuestionTopic.topic_id, func.count())
-            .where(QuestionTopic.is_primary.is_(True))
+            .join(Question, Question.id == QuestionTopic.question_id)
+            .where(QuestionTopic.is_primary.is_(True), Question.status == "published")
             .group_by(QuestionTopic.topic_id)
         )
     }

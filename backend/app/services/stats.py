@@ -6,8 +6,8 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..db.models import Attempt, QuestionTopic, Topic
 from .mastery import mastery_map
-from .models import Attempt, QuestionTopic, Topic
 
 DAYS = 30
 WEEKS = 8

@@ -3,9 +3,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from .db import Base, SessionLocal, engine
-from .migrate import migrate
-from .routers import auth, dashboard, me, quiz
+from .db.connection import Base, SessionLocal, engine
+from .db.migrate import migrate
+from .routers import auth, dashboard, home, profile, quiz
 from .seed import seed
 
 logging.basicConfig(level=logging.INFO)
@@ -22,7 +22,8 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Pattern Quiz API", lifespan=lifespan)
 app.include_router(auth.router)
-app.include_router(me.router)
+app.include_router(profile.router)
+app.include_router(home.router)
 app.include_router(quiz.router)
 app.include_router(dashboard.router)
 

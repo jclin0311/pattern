@@ -14,8 +14,8 @@ import time
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .config import settings
-from .models import AnalysisReport
+from ..core.config import settings
+from ..db.models import AnalysisReport
 
 log = logging.getLogger(__name__)
 

@@ -7,14 +7,20 @@ os.environ["ALLOW_DEV_LOGIN"] = "true"
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.pool import StaticPool
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
-from app import clock, db as db_module
-from app.db import Base, get_db
+from app.core import clock
+from app.db import connection as db_module
+from app.db.connection import get_db
 from app.main import app
 from app.seed import seed
+from app.seed.bank import QUESTIONS
+from fixtures import pilot_bank
+
+# The real bank plus a fixture that stocks every topic.
+FULL_BANK = (*pilot_bank.QUESTIONS, *QUESTIONS)
 
 
 class FakeClock:
@@ -42,9 +48,7 @@ def client(fake_clock, monkeypatch):
     monkeypatch.setattr(db_module, "engine", engine)
     monkeypatch.setattr("app.main.engine", engine)
     monkeypatch.setattr("app.main.SessionLocal", Session)
-    Base.metadata.create_all(engine)
-    with Session() as s:
-        seed(s)
+    monkeypatch.setattr("app.main.seed", lambda db: seed(db, FULL_BANK))  # app startup seeds the test bank
 
     def override():
         s = Session()

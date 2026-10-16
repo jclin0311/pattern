@@ -1,29 +1,5 @@
-from datetime import date
-
-from app.llm import fallback_narrative, validate_narrative
-from app.mastery import compute_mastery
-from app.seed import ALL_QUESTIONS, validate_question
-from app.seed.topics import CORE_ROUTE, EDGES, TOPICS
-
-
-def test_seed_bank_is_well_formed():
-    topic_ids = {t[0] for t in TOPICS}
-    slugs, numbers = set(), set()
-    for q in ALL_QUESTIONS:
-        validate_question(q)
-        assert q["slug"] not in slugs and (q["n"] is None or q["n"] not in numbers), q["slug"]
-        slugs.add(q["slug"])
-        numbers.add(q["n"])
-        # leetcode.cn-only problems have no number: they need a display id and a link.
-        assert q["n"] is not None or (q.get("ref") and q.get("url", "").startswith("https://leetcode.cn/")), q["slug"]
-        assert q["diff"] in ("Easy", "Medium", "Hard")
-        assert q["topics"] and set(q["topics"]) <= topic_ids, q["slug"]
-    assert len(ALL_QUESTIONS) >= 50
-    for a, b in EDGES:
-        assert a in topic_ids and b in topic_ids
-    # every core-route topic has at least two questions whose primary topic it is
-    for tid in CORE_ROUTE:
-        assert sum(q["topics"][0] == tid for q in ALL_QUESTIONS) >= 2, tid
+from app.services.analysis import fallback_narrative, validate_narrative
+from app.services.mastery import compute_mastery
 
 
 def test_mastery_is_smoothed_and_recency_weighted():

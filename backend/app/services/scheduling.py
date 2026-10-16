@@ -5,8 +5,8 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import clock
-from .models import ReviewItem
+from ..core import clock
+from ..db.models import Question, ReviewItem
 
 # A question first solved on day d is reviewed on d+1, d+2, d+6 and d+31.
 REVIEW_OFFSETS = (1, 2, 6, 31)
@@ -37,7 +37,9 @@ def due_review_question_ids(db: Session, user_id: int, plan: str, today: date) -
     """Questions with at least one incomplete review due today or earlier (missed days roll over)."""
     rows = db.execute(
         select(ReviewItem.question_id, ReviewItem.due_date)
+        .join(Question, Question.id == ReviewItem.question_id)
         .where(
+            Question.status == "published",  # retired questions leave the review queue
             ReviewItem.user_id == user_id,
             ReviewItem.plan == plan,
             ReviewItem.due_date <= today,

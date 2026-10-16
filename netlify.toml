@@ -1,0 +1,6 @@
+# API_ORIGIN (the Cloud Run URL) is read by next.config.mjs at build time:
+# set it in the Netlify site's environment variables, then redeploy.
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = ".next"

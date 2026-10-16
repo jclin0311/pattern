@@ -20,8 +20,8 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from ..db.models import Attempt, Question, QuizSession, RecommendationLog, Topic, TopicEdge
 from .mastery import READY_ATTEMPTS, READY_MASTERY, is_ready, mastery_map
-from .models import Attempt, Question, QuizSession, RecommendationLog, Topic, TopicEdge
 from .plans import get_plan, list_rank
 
 ALGORITHM_VERSION = "plans-v1"
@@ -124,10 +124,13 @@ def recommend(
         questions = [q for q in questions if list_rank(q.lc_number) is not None]
     rng_seed = f"{user_id}:{today.isoformat()}:{p.id}:{purpose}"
 
+    # A topic with no questions yet cannot be practised, so it gates nothing.
+    stocked = {q.primary_topic_id for q in questions}
+
     def unlocked(t: str) -> bool:
         if not p.roadmap:
             return True
-        return all(is_ready(mastery.get(pre)) for pre in prereqs.get(t, []))
+        return all(is_ready(mastery.get(pre)) or pre not in stocked for pre in prereqs.get(t, []))
 
     # --- 1-2. target topics, redirected to prerequisites when not ready
     targets: dict[str, Target] = {}
@@ -164,7 +167,7 @@ def recommend(
             aim_at(t, "Needs practice", 2)
     for t in topics:
         m = mastery.get(t)
-        if unlocked(t) and (m is None or m.attempts < READY_ATTEMPTS):
+        if t in stocked and unlocked(t) and (m is None or m.attempts < READY_ATTEMPTS):
             reason = "Next on roadmap" if p.roadmap else "New topic"
             add_target(t, Target(reason, priority=1 if purpose == "daily" else 3))
 
