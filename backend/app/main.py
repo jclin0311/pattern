@@ -5,8 +5,8 @@ from fastapi import FastAPI
 
 from .db.connection import Base, SessionLocal, engine
 from .db.migrate import migrate
-from .routers import auth, dashboard, home, profile, quiz
-from .seed import seed
+from .question_bank.seed import seed
+from .routers import auth, dashboard, home, profile, quiz_sessions
 
 logging.basicConfig(level=logging.INFO)
 
@@ -24,7 +24,7 @@ app = FastAPI(title="Pattern Quiz API", lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(profile.router)
 app.include_router(home.router)
-app.include_router(quiz.router)
+app.include_router(quiz_sessions.router)
 app.include_router(dashboard.router)
 
 

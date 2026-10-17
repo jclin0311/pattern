@@ -3,9 +3,9 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..core.clock import valid_timezone
-from ..core.config import SESSION_COOKIE, settings
-from ..core.security import issue_session, revoke_session, verify_google_credential
+from ..auth_session import issue_session, revoke_session, verify_google_credential
+from ..clock import valid_timezone
+from ..config import SESSION_COOKIE, settings
 from ..db.connection import get_db
 from ..db.models import User
 

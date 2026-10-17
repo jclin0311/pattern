@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..core import clock
+from .. import clock
 from ..db.models import Question, ReviewItem
 
 # A question first solved on day d is reviewed on d+1, d+2, d+6 and d+31.

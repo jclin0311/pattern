@@ -6,9 +6,9 @@ Problems rated ≤ 1700 or unrated, one module per route step, in step order.
 from collections import Counter
 from collections.abc import Sequence
 
-from ..schema import Question
-from ..topics import TOPICS
 from . import step4_tree_dfs, step5_grid_dfs
+from .question_schema import Question
+from .topic_graph import TOPICS
 
 QUESTIONS: tuple[Question, ...] = (
     *step4_tree_dfs.QUESTIONS,

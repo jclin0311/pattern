@@ -32,7 +32,7 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(80), default="")
     timezone: Mapped[str] = mapped_column(String(64), default="UTC")
     daily_goal: Mapped[int] = mapped_column(Integer, default=5)
-    plan: Mapped[str] = mapped_column(String(10), default="topic")  # see plans.py
+    plan: Mapped[str] = mapped_column(String(10), default="topic")  # see practice/study_plans.py
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

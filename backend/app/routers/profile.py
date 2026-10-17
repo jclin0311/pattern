@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from ..core.clock import valid_timezone
-from ..core.security import current_user
+from ..auth_session import current_user
+from ..clock import valid_timezone
 from ..db.connection import get_db
 from ..db.models import User
-from ..services.plans import get_plan
+from ..practice.study_plans import get_plan
 
 router = APIRouter(prefix="/api", tags=["profile"])
 

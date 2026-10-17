@@ -3,7 +3,7 @@
 The real bank fills the roadmap step by step; this one keeps flow tests independent of that.
 """
 
-from app.seed.schema import INCORRECT, OPTIMAL, SUBOPTIMAL, Choice, Question
+from app.question_bank.question_schema import INCORRECT, OPTIMAL, SUBOPTIMAL, Choice, Question
 
 QUESTIONS = [
     # ---------------------------------------------------------------- Arrays & Hashing

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db.models import Attempt, QuestionTopic, Topic
-from .mastery import mastery_map
+from ..practice.topic_mastery import mastery_map
 
 DAYS = 30
 WEEKS = 8

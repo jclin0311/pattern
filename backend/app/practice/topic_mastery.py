@@ -5,7 +5,7 @@ from collections import defaultdict
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from ..core import clock
+from .. import clock
 from ..db.models import Attempt, QuestionTopic, UserTopicMastery
 
 RECENT_WINDOW = 20  # attempts per topic that count toward mastery

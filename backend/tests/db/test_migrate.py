@@ -34,3 +34,13 @@ def test_migrate_upgrades_pre_plan_schema(tmp_path):
         # The same question can now be scheduled in another plan.
         conn.execute(text("INSERT INTO review_items (user_id, plan, question_id, stage, due_date) "
                           "VALUES (1, 'sprint', 7, 0, '2026-09-02')"))
+
+
+def test_plain_postgres_urls_use_psycopg():
+    from app.db.connection import sqlalchemy_url
+
+    neon = "postgresql://u:p@ep-x.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+    assert sqlalchemy_url(neon) == "postgresql+psycopg://" + neon.removeprefix("postgresql://")
+    assert sqlalchemy_url("postgres://u@h/db") == "postgresql+psycopg://u@h/db"
+    assert sqlalchemy_url("postgresql+psycopg://u@h/db") == "postgresql+psycopg://u@h/db"
+    assert sqlalchemy_url("sqlite:///./quiz.db") == "sqlite:///./quiz.db"

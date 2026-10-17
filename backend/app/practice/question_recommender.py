@@ -1,7 +1,7 @@
 """Deterministic question recommendation over the topic prerequisite graph.
 
 Mastery and today's misses come from every plan; the question pool, history
-and "already served" filters come from the current plan only (see plans.py).
+and "already served" filters come from the current plan only (see study_plans.py).
 
 1. Pick target topics: weak/uncertain topics, topics missed today, and the
    roadmap frontier (topics whose prerequisites are all ready). Plans without
@@ -21,8 +21,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..db.models import Attempt, Question, QuizSession, RecommendationLog, Topic, TopicEdge
-from .mastery import READY_ATTEMPTS, READY_MASTERY, is_ready, mastery_map
-from .plans import get_plan, list_rank
+from .study_plans import get_plan, list_rank
+from .topic_mastery import READY_ATTEMPTS, READY_MASTERY, is_ready, mastery_map
 
 ALGORITHM_VERSION = "plans-v1"
 DIFFICULTY_LEVEL = {"Easy": 0, "Medium": 1, "Hard": 2}

@@ -11,12 +11,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.core import clock
+from app import clock
 from app.db import connection as db_module
 from app.db.connection import get_db
 from app.main import app
-from app.seed import seed
-from app.seed.bank import QUESTIONS
+from app.question_bank.seed import seed
+from app.question_bank.route_questions import QUESTIONS
 from fixtures import pilot_bank
 
 # The real bank plus a fixture that stocks every topic.

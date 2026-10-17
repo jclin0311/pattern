@@ -1,6 +1,6 @@
 """Core route step 5: grid DFS (网格图 §1)."""
 
-from ..schema import INCORRECT, OPTIMAL, SUBOPTIMAL, Choice, Question
+from .question_schema import INCORRECT, OPTIMAL, SUBOPTIMAL, Choice, Question
 
 QUESTIONS = [
     Question(

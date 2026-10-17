@@ -9,11 +9,11 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import models
 from app.db.connection import Base
-from app.seed import seed
-from app.seed.bank import QUESTIONS
-from app.seed.schema import INCORRECT, OPTIMAL, VISUALS, Choice, Question
-from app.seed.topics import CORE_ROUTE, EDGES, TOPICS
-from app.services.recommend import recommend
+from app.question_bank.seed import seed
+from app.question_bank.route_questions import QUESTIONS
+from app.question_bank.question_schema import INCORRECT, OPTIMAL, VISUALS, Choice, Question
+from app.question_bank.topic_graph import CORE_ROUTE, EDGES, TOPICS
+from app.practice.question_recommender import recommend
 from conftest import FULL_BANK
 
 # --- the bank
@@ -52,7 +52,7 @@ def test_invalid_questions_are_rejected(kw, error):
 
 
 def test_visuals_match_the_frontend():
-    tsx = Path(__file__).parents[2] / "frontend/components/ApproachVisual.tsx"
+    tsx = Path(__file__).parents[3] / "frontend/components/ApproachVisual.tsx"
     block = re.search(r"^const VISUALS.*?^};", tsx.read_text(), re.S | re.M).group(0)
     assert set(re.findall(r'^  "?([a-z0-9-]+)"?:', block, re.M)) == VISUALS
 

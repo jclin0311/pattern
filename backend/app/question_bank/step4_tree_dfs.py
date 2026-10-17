@@ -1,6 +1,6 @@
 """Core route step 4: binary tree DFS (链表、树与回溯 §2.2 top-down, §2.3 bottom-up)."""
 
-from ..schema import INCORRECT, OPTIMAL, SUBOPTIMAL, Choice, Question
+from .question_schema import INCORRECT, OPTIMAL, SUBOPTIMAL, Choice, Question
 
 QUESTIONS = [
     # ---------------------------------------------------------------- §2.2 top-down DFS

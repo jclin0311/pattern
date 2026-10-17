@@ -162,7 +162,7 @@ def test_random_plan_ignores_roadmap(login):
 
 
 def test_sprint_plan_draws_from_interview_lists(login):
-    from app.services.plans import HOT_100, TOP_INTERVIEW_150
+    from app.practice.study_plans import HOT_100, TOP_INTERVIEW_150
 
     login.patch("/api/me", json={"plan": "sprint", "daily_goal": 20})
     s = login.post("/api/sessions", json={"mode": "daily"}).json()

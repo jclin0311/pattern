@@ -2,13 +2,13 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..core.clock import local_today
-from ..core.security import current_user
+from ..auth_session import current_user
+from ..clock import local_today
 from ..db.connection import get_db
 from ..db.models import Attempt, QuizSession, User
-from ..services.plans import get_plan
-from ..services.scheduling import due_review_question_ids
-from ..services.stats import streak
+from ..insights.dashboard_stats import streak
+from ..practice.review_schedule import due_review_question_ids
+from ..practice.study_plans import get_plan
 from .profile import user_payload
 
 router = APIRouter(prefix="/api", tags=["home"])

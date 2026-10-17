@@ -4,13 +4,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..db.models import Attempt, Choice, Question, QuestionTopic, Topic, TopicEdge, UserTopicMastery
-from ..services.mastery import recompute_user_mastery
-from . import schema
-from .bank import QUESTIONS, validate_bank
-from .topics import EDGES, TOPICS
+from ..practice.topic_mastery import recompute_user_mastery
+from . import question_schema
+from .route_questions import QUESTIONS, validate_bank
+from .topic_graph import EDGES, TOPICS
 
 
-def seed(db: Session, questions: Sequence[schema.Question] = QUESTIONS) -> None:
+def seed(db: Session, questions: Sequence[question_schema.Question] = QUESTIONS) -> None:
     """Idempotently load topics, the topic graph and the question bank.
 
     Topics, edges and question topic tags follow the seed, so retagging a

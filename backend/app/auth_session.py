@@ -6,10 +6,10 @@ from fastapi import Cookie, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..db.connection import get_db
-from ..db.models import AuthSession, User
 from . import clock
 from .config import SESSION_COOKIE, settings
+from .db.connection import get_db
+from .db.models import AuthSession, User
 
 
 def _hash(token: str) -> str:
