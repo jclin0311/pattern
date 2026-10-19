@@ -13,7 +13,12 @@ from ..clock import local_today
 from ..db.connection import get_db
 from ..db.models import Attempt, Choice, Company, Question, QuestionCompany, QuizSession, Topic, User
 from ..practice.question_recommender import recommend
-from ..practice.review_schedule import complete_due_reviews, due_review_question_ids, schedule_reviews
+from ..practice.review_schedule import (
+    complete_due_reviews,
+    due_review_question_ids,
+    review_again_today,
+    schedule_reviews,
+)
 from ..practice.study_plans import get_plan
 from ..practice.topic_mastery import recompute_user_mastery
 
@@ -139,34 +144,30 @@ def session_payload(db: Session, session: QuizSession) -> dict:
 def create_session(body: CreateSession, user: User = Depends(current_user), db: Session = Depends(get_db)):
     today = local_today(user.timezone)
     plan = get_plan(user.plan).id
-    if body.mode in ("daily", "review"):
-        existing = db.scalar(
+    todays = list(
+        db.scalars(
             select(QuizSession).where(
                 QuizSession.user_id == user.id,
                 QuizSession.plan == plan,
                 QuizSession.mode == body.mode,
                 QuizSession.local_date == today,
-            )
+            ).order_by(QuizSession.id)
         )
-        if existing:
+    )
+    if body.mode == "daily" and todays:
+        return session_payload(db, todays[0])
+    # Reopen today's unfinished review or extra set rather than starting another.
+    for existing in todays:
+        answered = db.scalar(select(func.count()).select_from(Attempt).where(Attempt.session_id == existing.id))
+        if answered < len(existing.question_ids):
             return session_payload(db, existing)
-    else:
-        # Reopen today's unfinished extra set rather than starting another.
-        for existing in db.scalars(
-            select(QuizSession).where(
-                QuizSession.user_id == user.id,
-                QuizSession.plan == plan,
-                QuizSession.mode == "extra",
-                QuizSession.local_date == today,
-            )
-        ):
-            answered = db.scalar(select(func.count()).select_from(Attempt).where(Attempt.session_id == existing.id))
-            if answered < len(existing.question_ids):
-                return session_payload(db, existing)
 
     if body.mode == "review":
+        # Questions missed after today's review was done are due today too.
         qids = due_review_question_ids(db, user.id, plan, today)
         if not qids:
+            if todays:
+                return session_payload(db, todays[-1])
             raise HTTPException(409, "Nothing to review")
         session = _new_session(db, user, "review", today, qids, {str(q): "Review" for q in qids})
     else:
@@ -204,6 +205,11 @@ def answer(session_id: int, body: AnswerBody, user: User = Depends(current_user)
 
     today = local_today(user.timezone)
     result = _feedback(question, body.choice_id)
+    first_sight = not db.scalar(
+        select(Attempt.id).where(
+            Attempt.user_id == user.id, Attempt.plan == session.plan, Attempt.question_id == question.id
+        )
+    )
     db.add(
         Attempt(
             user_id=user.id,
@@ -218,8 +224,10 @@ def answer(session_id: int, body: AnswerBody, user: User = Depends(current_user)
     )
     if session.mode == "review":
         complete_due_reviews(db, user.id, session.plan, question.id, today)
-    else:
+    elif first_sight and not result["is_correct"]:
         schedule_reviews(db, user.id, session.plan, question.id, today)
+    if not result["is_correct"]:
+        review_again_today(db, user.id, session.plan, question.id, today)
     try:
         db.commit()
     except IntegrityError:  # concurrent duplicate submit

@@ -1,15 +1,17 @@
-"""Deterministic question recommendation over the topic prerequisite graph.
+"""Deterministic question recommendation.
 
-Mastery and today's misses come from every plan; the question pool, history
-and "already served" filters come from the current plan only (see study_plans.py).
+Everything here comes from the current plan only: its question pool, history,
+today's misses and a per-topic mastery computed from its own answers. The
+overall mastery shown on the dashboard spans all plans and is not used.
 
-1. Pick target topics: weak/uncertain topics, topics missed today, and the
-   roadmap frontier (topics whose prerequisites are all ready). Plans without
-   a roadmap treat every topic as unlocked.
-2. If a target's prerequisites are not ready, practice the prerequisite instead.
-3. Retrieve published questions in the plan's pool and filter recent history.
-4. Rank by six features plus plan-specific ones, diversify by topic, log
-   scores and reasons.
+Extra first brings back questions missed at least twice. New questions then come
+one of two ways:
+
+- Route-order plans (Topic) interleave topics, taking each topic's next unanswered
+  question in list order from whichever topic is least far through its list.
+- Other plans pick target topics (weak/uncertain, missed today, untried), rank
+  questions by six features plus plan-specific ones, diversify by topic, and log
+  scores and reasons.
 """
 
 import random
@@ -20,9 +22,9 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from ..db.models import Attempt, Question, QuizSession, RecommendationLog, Topic, TopicEdge
-from .study_plans import get_plan, list_rank
-from .topic_mastery import READY_ATTEMPTS, READY_MASTERY, is_ready, mastery_map
+from ..db.models import Attempt, Question, QuizSession, RecommendationLog, Topic
+from .study_plans import get_plan, in_pool, list_rank
+from .topic_mastery import READY_ATTEMPTS, READY_MASTERY, compute_mastery
 
 ALGORITHM_VERSION = "plans-v1"
 DIFFICULTY_LEVEL = {"Easy": 0, "Medium": 1, "Hard": 2}
@@ -30,7 +32,6 @@ DIFFICULTY_LEVEL = {"Easy": 0, "Medium": 1, "Hard": 2}
 WEIGHTS = {
     "weakness": 0.25,
     "missed_today": 0.25,
-    "prerequisite_gap": 0.15,
     "novelty": 0.15,
     "difficulty_fit": 0.10,
     "staleness": 0.10,
@@ -46,8 +47,13 @@ PLAN_WEIGHTS = {
 class Target:
     reason: str
     missed_today: bool = False
-    prerequisite_gap: bool = False
     priority: int = 0  # lower is more urgent
+
+
+@dataclass
+class PlanMastery:
+    mastery: float
+    attempts: int
 
 
 @dataclass
@@ -57,14 +63,6 @@ class Scored:
     score: float
     reason: str
     features: dict[str, float] = field(default_factory=dict)
-
-
-def _graph(db: Session) -> tuple[dict[str, Topic], dict[str, list[str]]]:
-    topics = {t.id: t for t in db.scalars(select(Topic).order_by(Topic.position))}
-    prereqs: dict[str, list[str]] = defaultdict(list)
-    for e in db.scalars(select(TopicEdge)):
-        prereqs[e.to_topic_id].append(e.from_topic_id)
-    return topics, prereqs
 
 
 def _target_level(mastery: float | None) -> int:
@@ -83,30 +81,40 @@ def recommend(
     exclude: set[int] | None = None,
 ) -> list[Scored]:
     p = get_plan(plan)
-    topics, prereqs = _graph(db)
-    mastery = mastery_map(db, user_id)  # all plans
+    topics = {t.id: t for t in db.scalars(select(Topic).order_by(Topic.position))}
     exclude = set(exclude or ())
     plan_weights = PLAN_WEIGHTS.get(p.id, {})
 
-    # Questions already served today in this plan are not repeated.
-    for qids in db.scalars(
-        select(QuizSession.question_ids).where(
+    # Questions already served today in this plan are not repeated, except that
+    # Extra may bring back a repeatedly missed question served earlier today.
+    served_extra_today: set[int] = set()
+    for mode, qids in db.execute(
+        select(QuizSession.mode, QuizSession.question_ids).where(
             QuizSession.user_id == user_id, QuizSession.plan == p.id, QuizSession.local_date == today
         )
     ):
         exclude.update(qids)
+        if mode == "extra":
+            served_extra_today.update(qids)
 
     attempts = db.execute(
-        select(Attempt.question_id, Attempt.is_correct, Attempt.local_date, Attempt.plan)
+        select(Attempt.question_id, Attempt.is_correct, Attempt.local_date, Attempt.plan, Attempt.mode)
         .where(Attempt.user_id == user_id)
         .order_by(Attempt.created_at)
     ).all()
     last_seen: dict[int, date] = {}
     last_correct: dict[int, bool] = {}
-    for qid, ok, d, a_plan in attempts:
+    misses: dict[int, int] = defaultdict(int)
+    extra_due: set[int] = set()  # missed twice and not yet answered in Extra since
+    for qid, ok, d, a_plan, a_mode in attempts:
         if a_plan == p.id:
             last_seen[qid] = d
             last_correct[qid] = ok
+            misses[qid] += not ok
+            if a_mode == "extra":
+                extra_due.discard(qid)
+            elif not ok and misses[qid] == 2:
+                extra_due.add(qid)
 
     questions = list(
         db.scalars(
@@ -117,67 +125,49 @@ def recommend(
     )
     q_by_id = {q.id: q for q in questions}
     missed_today_topics: set[str] = set()
-    for qid, ok, d, _ in attempts:  # all plans
-        if d == today and not ok and qid in q_by_id:
-            missed_today_topics.update(t.topic_id for t in q_by_id[qid].topics)
-    if p.id == "sprint":
-        questions = [q for q in questions if list_rank(q.lc_number) is not None]
+    outcomes: dict[str, list[bool]] = defaultdict(list)  # this plan's answers per topic, newest first
+    for qid, ok, d, a_plan, _ in reversed(attempts):
+        if a_plan != p.id or qid not in q_by_id:
+            continue
+        for t in q_by_id[qid].topics:
+            outcomes[t.topic_id].append(ok)
+            if d == today and not ok:
+                missed_today_topics.add(t.topic_id)
+    mastery = {t: PlanMastery(compute_mastery(o)[0], len(o)) for t, o in outcomes.items()}
+    questions = [q for q in questions if in_pool(p, q.lc_number)]
     rng_seed = f"{user_id}:{today.isoformat()}:{p.id}:{purpose}"
 
-    # A topic with no questions yet cannot be practised, so it gates nothing.
-    stocked = {q.primary_topic_id for q in questions}
+    by_topic: dict[str, list[Question]] = defaultdict(list)  # primary topic → questions in list order
+    for q in sorted(questions, key=lambda q: q.position):
+        by_topic[q.primary_topic_id].append(q)
 
-    def unlocked(t: str) -> bool:
-        if not p.roadmap:
-            return True
-        return all(is_ready(mastery.get(pre)) or pre not in stocked for pre in prereqs.get(t, []))
-
-    # --- 1-2. target topics, redirected to prerequisites when not ready
+    # --- target topics (ranked plans)
     targets: dict[str, Target] = {}
 
     def add_target(topic_id: str, target: Target) -> None:
         if topic_id not in targets or target.priority < targets[topic_id].priority:
             targets[topic_id] = target
 
-    def aim_at(topic_id: str, reason: str, priority: int, missed: bool = False) -> None:
-        if unlocked(topic_id):
-            add_target(topic_id, Target(reason, missed_today=missed, priority=priority))
-            return
-        for pre in prereqs.get(topic_id, []):
-            if not is_ready(mastery.get(pre)):
-                add_target(
-                    pre,
-                    Target(
-                        f"Prerequisite for {topics[topic_id].name}",
-                        missed_today=missed,
-                        prerequisite_gap=True,
-                        priority=priority,
-                    ),
-                )
-
     if purpose == "extra":
         for t in missed_today_topics:
-            aim_at(t, "Missed today", 0, missed=True)
+            add_target(t, Target("Missed today", missed_today=True, priority=0))
     for t, m in mastery.items():
         if m.mastery < READY_MASTERY:
-            aim_at(t, f"Weak · {round(m.mastery * 100)}%", 1)
-        elif m.attempts < READY_ATTEMPTS and unlocked(t):
-            # Thin evidence on a locked topic (e.g. from a secondary tag) is not
-            # a reason to jump ahead on the roadmap.
-            aim_at(t, "Needs practice", 2)
+            add_target(t, Target(f"Weak · {round(m.mastery * 100)}%", priority=1))
+        elif m.attempts < READY_ATTEMPTS:
+            add_target(t, Target("Needs practice", priority=2))
     for t in topics:
         m = mastery.get(t)
-        if t in stocked and unlocked(t) and (m is None or m.attempts < READY_ATTEMPTS):
-            reason = "Next on roadmap" if p.roadmap else "New topic"
-            add_target(t, Target(reason, priority=1 if purpose == "daily" else 3))
+        if t in by_topic and (m is None or m.attempts < READY_ATTEMPTS):
+            add_target(t, Target("New topic", priority=1 if purpose == "daily" else 3))
 
-    # --- 3. retrieve and filter
+    # --- filter
     def eligible(q: Question, allow_seen: bool) -> bool:
         if q.id in exclude:
             return False
-        if purpose == "daily" and not allow_seen and q.id in last_seen:
+        if q.id in last_seen and not allow_seen:
             return False
-        # Recently answered correctly: leave it to the review schedule.
+        # Recently answered correctly: no need to see it again yet.
         if q.id in last_seen and last_correct.get(q.id) and (today - last_seen[q.id]).days < 3:
             return False
         return True
@@ -188,7 +178,6 @@ def recommend(
         features = {
             "weakness": 1 - (m.mastery if m else 0.5),
             "missed_today": 1.0 if target and target.missed_today else 0.0,
-            "prerequisite_gap": 1.0 if target and target.prerequisite_gap else 0.0,
             "novelty": 1.0 if not seen else (0.3 if not last_correct.get(q.id) else 0.0),
             "difficulty_fit": 1 - abs(DIFFICULTY_LEVEL[q.difficulty] - _target_level(m.mastery if m else None)) / 2,
             "staleness": 1.0 if not seen else min((today - last_seen[q.id]).days, 30) / 30,
@@ -202,10 +191,10 @@ def recommend(
             s += 0.05 * (3 - target.priority)  # urgency tie-breaker
         if topic_id != q.primary_topic_id:
             s -= 0.1  # a secondary tag is weaker evidence the question practices this topic
-        # Stable roadmap order as the final tie-breaker.
+        # Stable topic order as the final tie-breaker.
         s -= topics[topic_id].position * 1e-4 + q.id * 1e-7
         reason = target.reason if target else "New topic"
-        if p.id == "sprint" and reason in ("New topic", "Next on roadmap"):
+        if p.id == "sprint" and reason == "New topic":
             reason = "Hot 100" if features["list"] == 1.0 else "Interview 150"
         return Scored(q.id, topic_id, round(s, 6), reason, {k: round(v, 3) for k, v in features.items()})
 
@@ -222,7 +211,7 @@ def recommend(
             out.append(score(q, targets.get(topic_id), topic_id))
         return sorted(out, key=lambda s: -s.score)
 
-    # --- 4. diversify
+    # --- assemble the set
     picked: list[Scored] = []
     per_topic: dict[str, int] = defaultdict(int)
 
@@ -237,9 +226,37 @@ def recommend(
             picked.append(c)
             per_topic[c.topic_id] += 1
 
-    take(ranked(allow_seen=False, only_targets=True), p.per_topic_cap)
-    take(ranked(allow_seen=False, only_targets=True), None)
-    take(ranked(allow_seen=False, only_targets=False), None)
+    def next_mixed() -> list[Scored]:
+        """Unanswered questions with topics interleaved, each topic in list order. Each pick
+        comes from the topic least far through its list, so every set mixes topics."""
+        queues = {t: [q for q in qs if q.id not in last_seen and q.id not in exclude] for t, qs in by_topic.items()}
+        done = {t: sum(q.id in last_seen for q in qs) for t, qs in by_topic.items()}
+        order = {t: i for i, t in enumerate(topics)}
+        out: list[Scored] = []
+        while len(out) < limit:
+            open_topics = [t for t in queues if queues[t]]
+            if not open_topics:
+                break
+            t = min(open_topics, key=lambda t: (done[t] / len(by_topic[t]), order.get(t, 0)))
+            q = queues[t].pop(0)
+            done[t] += 1
+            out.append(Scored(q.id, t, 0.0, "New", {"position": q.position}))
+        return out
+
+    def missed_again() -> list[Scored]:
+        """Questions missed at least twice and not yet answered in Extra, latest first."""
+        pool = [qid for qid in extra_due if qid in q_by_id and qid not in served_extra_today]
+        pool.sort(key=lambda qid: (last_seen[qid], q_by_id[qid].position), reverse=True)
+        return [Scored(qid, q_by_id[qid].primary_topic_id, 0.0, f"Missed {misses[qid]}×", {}) for qid in pool]
+
+    if purpose == "extra":
+        take(missed_again(), None)
+    if p.route_order:
+        take(next_mixed(), None)
+    else:
+        take(ranked(allow_seen=False, only_targets=True), p.per_topic_cap)
+        take(ranked(allow_seen=False, only_targets=True), None)
+        take(ranked(allow_seen=False, only_targets=False), None)
     if purpose == "daily":
         take(ranked(allow_seen=True, only_targets=False), None)
 

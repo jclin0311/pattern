@@ -107,16 +107,21 @@ def test_seed_retags_existing_bank_and_retires_old_topics(db):
     assert db.query(models.TopicEdge).count() == 11
 
 
-def test_dropped_questions_retire_and_empty_topics_do_not_gate(db):
+def test_dropped_questions_retire_and_empty_topics_are_skipped(db):
     seed(db, FULL_BANK)
-    seed(db)  # the real bank alone: the fixture questions retire
-    assert _question_row(db, "two-sum").status == "retired"
-    assert db.query(models.Question).filter(models.Question.status == "published").count() == len(QUESTIONS)
+    # The real bank with route topics 0 and 2 emptied: their questions and the fixture's retire.
+    emptied = {CORE_ROUTE[0], CORE_ROUTE[2]}
+    bank = [q for q in QUESTIONS if q.topics[0] not in emptied]
+    seed(db, bank)
+    dropped = next(q.slug for q in FULL_BANK if q not in bank)
+    assert _question_row(db, dropped).status == "retired"
+    assert db.query(models.Question).filter(models.Question.status == "published").count() == len(bank)
 
     user = models.User(name="a")
     db.add(user)
     db.flush()
-    # Steps 1-3 have no questions yet, so the roadmap opens at trees.
+    # New questions mix the stocked topics, one each before any repeats.
     picked = recommend(db, user.id, date(2026, 9, 1), limit=5, purpose="daily")
-    assert len(picked) == 5 and {s.topic_id for s in picked} == {"trees"}
-    assert {s.reason for s in picked} == {"Next on roadmap"}
+    topics = [s.topic_id for s in picked]
+    assert len(topics) == 5 and set(topics[:4]) == set(CORE_ROUTE) - emptied
+    assert {s.reason for s in picked} == {"New"}

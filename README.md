@@ -105,15 +105,69 @@ cd backend && .venv/bin/python -m pytest -q
 cd frontend && npx tsc --noEmit
 ```
 
+## Deploy
+
+The frontend runs on Netlify, the API on Cloud Run and the database on Neon.
+
+| Change | How |
+|---|---|
+| Frontend | `git push` to `main`; Netlify redeploys automatically. |
+| Backend or question bank | `gcloud run deploy pattern-api --source backend --region us-east4`. Env vars and secrets carry over, and the startup seed writes new questions to Neon. |
+
+## Study plans
+
+Each plan keeps its own Practice, Review and Extra history, so "first sight" means the
+first time a question is seen in that plan. Today's questions are chosen from the current
+plan's data alone. Overall numbers span every plan: the profile page shows each topic's
+mastery and the AI summary, and the dashboard shows accuracy and activity, plus how much of
+the current plan's question pool is done. In
+every plan, topic tags stay hidden until a question is answered, so the pattern has to be
+recognized.
+
+### Topic
+
+Work through the whole core route with topics mixed, so each question's pattern has to be
+recognized rather than read off the topic you're on.
+
+**Practice.** `daily_goal` new questions a day, saved per local day. Every set mixes
+topics: each question comes from the topic you're least far through, as a share of its
+list, and is that topic's next unanswered question in list order (灵神's lists run
+roughly from easy to hard). Larger topics therefore come up more often, and every topic
+is finished at about the same pace. A question is never served as new twice.
+
+**Review.** Questions you missed:
+
+- Every question missed today, in Practice, Extra or Review, comes back today. When a
+  review set is done, a new one opens with anything missed since, so a question missed in
+  Review keeps returning until you get it right.
+- A question missed at first sight is also reviewed 1, 2, 4, 7, 15 and 30 days later,
+  whatever happens in between. Missed days roll over.
+- A question answered correctly at first sight is never reviewed.
+
+**Extra.** 5 more questions on demand:
+
+1. Questions missed at least twice, most recent first, until each has been answered once
+   in Extra (right or wrong).
+2. Then new questions, mixed and in list order exactly as in Practice. A new question
+   missed here follows the same review rules.
+
+### Random
+
+_To be written._
+
+### Sprint
+
+_To be written._
+
 ## How it works
 
 | Piece | Where | Notes |
 |---|---|---|
-| Plans | `practice/study_plans.py` | Topic (roadmap, one pattern at a time), Random (no roadmap, one question per topic, tags hidden until answered), Sprint (Hot 100, then Top Interview 150). Chosen on the profile page. Each plan has its own Practice, Review and Extra; mastery and progress span all plans. |
-| Daily practice | `practice/question_recommender.py` (`purpose="daily"`) | `daily_goal` new questions, following the topic roadmap. The set is saved per local day. |
-| Review | `practice/review_schedule.py` | A question first answered on day *d* is reviewed on *d*+1, 2, 6, 31. Missed days roll over. |
-| Extra practice | `practice/question_recommender.py` (`purpose="extra"`) | 5 questions targeting topics missed today. If a topic's prerequisites aren't ready, it practices the prerequisite first. |
-| Mastery | `practice/topic_mastery.py` | Recency-weighted, smoothed accuracy per topic. A topic is "ready" at ≥ 65% over ≥ 3 answers. Recomputed when you leave or finish a quiz. |
+| Plans | `practice/study_plans.py` | Topic, Random and Sprint; see [Study plans](#study-plans). Chosen on the profile page. |
+| Daily practice | `practice/question_recommender.py` (`purpose="daily"`) | See [Study plans](#study-plans). |
+| Review | `practice/review_schedule.py` | See [Study plans](#study-plans). |
+| Extra practice | `practice/question_recommender.py` (`purpose="extra"`) | See [Study plans](#study-plans). |
+| Mastery | `practice/topic_mastery.py` | Smoothed accuracy per topic over every answer in every plan, with each older answer weighted ×0.98 so recent ones count a little more; shown on the profile page. Recomputed when you leave or finish a quiz. The Random and Sprint plans compute the same measure from their own answers to pick weak topics. |
 | Grading | `routers/quiz_sessions.py` | Deterministic. The question payload never includes verdicts or explanations until an answer is recorded. Choice order is shuffled per session. |
 | Analysis | `insights/performance_analysis.py` | Only aggregate stats go to Claude (no email or ids). Any cited percentage must match a computed value, or it falls back to a template. Cached by stats hash. |
 
@@ -122,12 +176,12 @@ Topics and the roadmap follow the 12 topic lists from
 route is the spine, and each remaining list branches off the core topic it builds on.
 Question content has original summaries and source links:
 
-- `backend/app/question_bank/stepN_*.py`: core-route problems rated ≤ 1700, one file per step,
-  in route order (binary tree DFS and grid DFS so far).
+- `backend/app/question_bank/stepN_*.py`: core-route problems rated ≤ 1700 or unrated, one
+  file per step, in route order (steps 1–7, 485 questions).
 - `backend/app/question_bank/question_schema.py`: the typed `Question` / `Choice` entries. Each one validates
   itself on import, including the column widths Postgres enforces.
 
 On startup the seed keeps topics, edges and question tags in sync with these files and
 rebuilds mastery if any tags moved. Questions removed from the bank are retired, not
-deleted, so past attempts keep their history. Topics with no questions yet don't gate the
-roadmap. Tests seed an extra fixture bank (`backend/tests/fixtures/`) that covers every topic.
+deleted, so past attempts keep their history. Topics with no questions yet are skipped.
+Tests seed an extra fixture bank (`backend/tests/fixtures/`) that covers every topic.

@@ -1,4 +1,4 @@
-"""Topic mastery: recency-weighted, smoothed accuracy per topic."""
+"""Topic mastery: smoothed accuracy per topic over every answer, recent ones weighted a little more."""
 
 from collections import defaultdict
 
@@ -8,8 +8,7 @@ from sqlalchemy.orm import Session
 from .. import clock
 from ..db.models import Attempt, QuestionTopic, UserTopicMastery
 
-RECENT_WINDOW = 20  # attempts per topic that count toward mastery
-DECAY = 0.9  # weight multiplier per older attempt
+DECAY = 0.98  # weight multiplier per older attempt: 50 answers back still counts about a third
 READY_MASTERY = 0.65
 READY_ATTEMPTS = 3
 
@@ -17,13 +16,13 @@ READY_ATTEMPTS = 3
 def compute_mastery(outcomes_newest_first: list[bool]) -> tuple[float, float]:
     """Return (mastery, confidence) for a topic.
 
-    mastery is a Beta(1,1)-smoothed, recency-weighted accuracy, so a single
-    lucky answer does not read as mastery. confidence grows with evidence.
+    mastery is a Beta(1,1)-smoothed accuracy over every answer, gently weighted
+    toward recent ones, so a single lucky answer does not read as mastery.
+    confidence grows with evidence.
     """
-    recent = outcomes_newest_first[:RECENT_WINDOW]
     weight_sum = 0.0
     correct_sum = 0.0
-    for i, ok in enumerate(recent):
+    for i, ok in enumerate(outcomes_newest_first):
         w = DECAY**i
         weight_sum += w
         correct_sum += w * ok
@@ -66,7 +65,3 @@ def mastery_map(db: Session, user_id: int) -> dict[str, UserTopicMastery]:
         m.topic_id: m
         for m in db.scalars(select(UserTopicMastery).where(UserTopicMastery.user_id == user_id))
     }
-
-
-def is_ready(m: UserTopicMastery | None) -> bool:
-    return m is not None and m.mastery >= READY_MASTERY and m.attempts >= READY_ATTEMPTS

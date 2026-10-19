@@ -6,7 +6,8 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..db.models import Attempt, QuestionTopic, Topic
+from ..db.models import Attempt, Question, QuestionTopic, Topic
+from ..practice.study_plans import get_plan, in_pool
 from ..practice.topic_mastery import mastery_map
 
 DAYS = 30
@@ -26,6 +27,19 @@ def streak(db: Session, user_id: int, today: date) -> int:
         count += 1
         d -= timedelta(days=1)
     return count
+
+
+def plan_progress(db: Session, user_id: int, plan_id: str) -> dict:
+    """How much of a plan's question pool has been answered in that plan."""
+    p = get_plan(plan_id)
+    pool = {
+        qid for qid, n in db.execute(select(Question.id, Question.lc_number).where(Question.status == "published"))
+        if in_pool(p, n)
+    }
+    answered = set(
+        db.scalars(select(Attempt.question_id).where(Attempt.user_id == user_id, Attempt.plan == p.id).distinct())
+    )
+    return {"id": p.id, "name": p.name, "answered": len(pool & answered), "total": len(pool)}
 
 
 def dashboard_stats(db: Session, user_id: int, today: date) -> dict:

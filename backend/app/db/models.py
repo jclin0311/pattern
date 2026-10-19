@@ -93,6 +93,8 @@ class Question(Base):
     criterion: Mapped[str] = mapped_column(Text)
     hint: Mapped[str] = mapped_column(Text, default="")
     source_url: Mapped[str] = mapped_column(String(500), default="")
+    # Place in the bank's route order; the Topic plan serves new questions in this order.
+    position: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     topics: Mapped[list["QuestionTopic"]] = relationship(

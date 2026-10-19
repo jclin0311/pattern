@@ -8,15 +8,22 @@ from sqlalchemy.orm import Session
 from .. import clock
 from ..db.models import Question, ReviewItem
 
-# A question first solved on day d is reviewed on d+1, d+2, d+6 and d+31.
-REVIEW_OFFSETS = (1, 2, 6, 31)
+# A question missed the first time it is seen, on day d, is reviewed on d+1, d+2, d+4, d+7,
+# d+15 and d+30. A question answered correctly at first sight is never reviewed.
+REVIEW_OFFSETS = (1, 2, 4, 7, 15, 30)
+# Every miss, in any session, is also reviewed again the same day. One reusable item per
+# question holds that, reopened on each miss.
+SAME_DAY_STAGE = -1
 
 
 def schedule_reviews(db: Session, user_id: int, plan: str, question_id: int, solved_on: date) -> None:
-    """Create review items the first time a user solves a question in a plan. No-op afterwards."""
+    """Create the review cycle for a question missed at first sight in a plan. No-op afterwards."""
     exists = db.scalar(
         select(ReviewItem.id).where(
-            ReviewItem.user_id == user_id, ReviewItem.plan == plan, ReviewItem.question_id == question_id
+            ReviewItem.user_id == user_id,
+            ReviewItem.plan == plan,
+            ReviewItem.question_id == question_id,
+            ReviewItem.stage >= 0,
         )
     )
     if exists:
@@ -66,3 +73,19 @@ def complete_due_reviews(db: Session, user_id: int, plan: str, question_id: int,
     )
     for item in items:
         item.completed_at = clock.now()
+
+
+def review_again_today(db: Session, user_id: int, plan: str, question_id: int, today: date) -> None:
+    """A missed question is due for review again today, whichever session it was missed in."""
+    item = db.scalar(
+        select(ReviewItem).where(
+            ReviewItem.user_id == user_id,
+            ReviewItem.plan == plan,
+            ReviewItem.question_id == question_id,
+            ReviewItem.stage == SAME_DAY_STAGE,
+        )
+    )
+    if item is None:
+        db.add(ReviewItem(user_id=user_id, plan=plan, question_id=question_id, stage=SAME_DAY_STAGE, due_date=today))
+    else:
+        item.due_date, item.completed_at = today, None

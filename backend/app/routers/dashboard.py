@@ -6,7 +6,7 @@ from ..auth_session import current_user
 from ..clock import local_today
 from ..db.connection import get_db
 from ..db.models import Question, QuestionTopic, Topic, TopicEdge, User
-from ..insights.dashboard_stats import dashboard_stats
+from ..insights.dashboard_stats import dashboard_stats, plan_progress
 from ..insights.performance_analysis import performance_analysis
 from ..practice.topic_mastery import mastery_map
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api", tags=["dashboard"])
 
 @router.get("/dashboard")
 def dashboard(user: User = Depends(current_user), db: Session = Depends(get_db)):
-    return dashboard_stats(db, user.id, local_today(user.timezone))
+    return {**dashboard_stats(db, user.id, local_today(user.timezone)), "plan": plan_progress(db, user.id, user.plan)}
 
 
 @router.get("/dashboard/analysis")

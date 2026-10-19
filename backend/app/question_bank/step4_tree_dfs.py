@@ -5,6 +5,36 @@ from .question_schema import INCORRECT, OPTIMAL, SUBOPTIMAL, Choice, Question
 QUESTIONS = [
     # ---------------------------------------------------------------- §2.2 top-down DFS
     Question(
+        slug="maximum-depth-of-binary-tree", number=104, title="Maximum Depth of Binary Tree",
+        difficulty="Easy", topics=("trees",),
+        summary="Return the number of nodes on the longest path from the root down to a leaf.",
+        example="[3, 9, 20, null, null, 15, 7]  →  3",
+        criterion="Which approach is linear with O(h) extra space?",
+        hint="How does a node's depth relate to its children's depths?",
+        choices=(
+            Choice(
+                "DFS: 1 + max of the children", OPTIMAL, time="O(n)", space="O(h)", visual="tree-dfs",
+                detail="depth(node) = 0 for null, else 1 + max(depth(left), depth(right)).",
+                why="A node's answer is built from its children's answers, so one visit per node is enough, and the stack never exceeds the height.",
+            ),
+            Choice(
+                "Walk from the root to every node", SUBOPTIMAL, time="O(n·h)", space="O(h)", visual="brute",
+                detail="For each node, find its depth by searching from the root; take the max.",
+                why="Correct, but each walk repeats the path its ancestors already took.",
+            ),
+            Choice(
+                "Follow the leftmost path", INCORRECT, time="O(h)", space="O(1)", visual="tree-dfs",
+                detail="Count nodes while going left from the root.",
+                why="In the example, the left spine is [3, 9]. Where is the deepest leaf?",
+            ),
+            Choice(
+                "log₂ of the node count", INCORRECT, time="O(n)", space="O(h)", visual="math",
+                detail="Count nodes and take the logarithm.",
+                why="That holds only for balanced trees. A chain of n nodes has depth n.",
+            ),
+        ),
+    ),
+    Question(
         slug="minimum-depth-of-binary-tree", number=111, title="Minimum Depth of Binary Tree",
         difficulty="Easy", topics=("trees",),
         summary="Return the number of nodes on the shortest path from the root down to a leaf (a node with no children).",

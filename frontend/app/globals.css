@@ -80,6 +80,9 @@ a { color: var(--ink); text-underline-offset: 3px; text-decoration-thickness: 1p
   animation: fade 0.5s ease;
 }
 .shell.wide { max-width: 720px; }
+.shell.split { max-width: 960px; }
+.split-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+@media (max-width: 760px) { .split-cols { grid-template-columns: 1fr; } }
 
 .card {
   background: var(--card);

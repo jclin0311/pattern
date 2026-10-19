@@ -1,14 +1,14 @@
 """Study plans, after "如何科学刷题" (leetcode.cn/discuss/post/3141566).
 
-Each plan keeps its own Practice, Review and Extra history. Mastery and the
-progress analysis span every plan; only the question pool and the way
-questions are chosen differ.
+Each plan keeps its own Practice, Review and Extra history, and today's
+questions are chosen from that plan's data alone. Mastery, accuracy and the
+progress analysis on the dashboard span every plan. Topic tags stay hidden
+until a question is answered in every plan.
 
-- topic:  Topic training. Follow the roadmap one pattern at a time, easier
-          problems first, and unlock a topic only once its prerequisites are ready.
-- random: Random training. Topic-blind mixed sets for people past the basics:
-          no roadmap, one question per topic, and topic tags stay hidden until
-          answered so the pattern has to be recognized.
+- topic:  Topic training. Work through the core route with topics mixed in every
+          set, each topic in list order.
+- random: Random training. Mixed sets for people past the basics: one question
+          per topic.
 - sprint: Sprint training. Interview prep under time pressure: LeetCode Hot 100
           first, then Top Interview 150.
 """
@@ -22,15 +22,15 @@ DEFAULT_PLAN = "topic"
 class Plan:
     id: str
     name: str
-    roadmap: bool  # gate topics behind their prerequisites
+    route_order: bool  # new questions: topics interleaved, each in list order
     per_topic_cap: int  # questions per topic in a set before topping up
     hide_topics: bool  # hide topic tags until answered
 
 
 PLANS = {
-    "topic": Plan("topic", "Topic", roadmap=True, per_topic_cap=3, hide_topics=False),
-    "random": Plan("random", "Random", roadmap=False, per_topic_cap=1, hide_topics=True),
-    "sprint": Plan("sprint", "Sprint", roadmap=False, per_topic_cap=2, hide_topics=False),
+    "topic": Plan("topic", "Topic", route_order=True, per_topic_cap=3, hide_topics=True),
+    "random": Plan("random", "Random", route_order=False, per_topic_cap=1, hide_topics=True),
+    "sprint": Plan("sprint", "Sprint", route_order=False, per_topic_cap=2, hide_topics=True),
 }
 
 # LeetCode problem numbers.
@@ -61,6 +61,11 @@ def list_rank(lc_number: int | None) -> float | None:
     if lc_number in TOP_INTERVIEW_150:
         return 0.5
     return None
+
+
+def in_pool(plan: Plan, lc_number: int | None) -> bool:
+    """Whether a question belongs to the plan's question pool."""
+    return plan.id != "sprint" or list_rank(lc_number) is not None
 
 
 def get_plan(plan_id: str | None) -> Plan:

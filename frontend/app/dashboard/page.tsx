@@ -5,9 +5,7 @@ import {
   Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import BottomNav from "@/components/BottomNav";
-import Dolphin from "@/components/Dolphin";
-import TopicGraph from "@/components/TopicGraph";
-import { api, DashboardStats, TopicGraph as Graph, topicLabel } from "@/lib/api";
+import { api, DashboardStats, topicLabel } from "@/lib/api";
 
 const axis = { fontSize: 11, fill: "var(--muted)" };
 const tooltipStyle = {
@@ -45,17 +43,11 @@ function TableView({ headers, rows }: { headers: string[]; rows: (string | numbe
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [graph, setGraph] = useState<Graph | null>(null);
-  const [analysis, setAnalysis] = useState<{ text: string; source: string } | null>(null);
-  const [analysisError, setAnalysisError] = useState(false);
   const [topic, setTopic] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api<DashboardStats>("/dashboard").then(setStats).catch((e) => setError(e.message));
-    api<Graph>("/topics/graph").then(setGraph).catch(() => {});
-    // The narrative refreshes whenever the underlying stats change (cached server-side by stats hash).
-    api<{ text: string; source: string }>("/dashboard/analysis").then(setAnalysis).catch(() => setAnalysisError(true));
   }, []);
 
   const weeklyTopics = useMemo(() => (stats ? Object.keys(stats.weekly_topic_accuracy) : []), [stats]);
@@ -81,6 +73,7 @@ export default function DashboardPage() {
       <h1 className="h1" style={{ margin: "6px 0 28px" }}>Progress</h1>
 
       <div className="stats plain" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "18px 0", marginBottom: 28 }}>
+        <div className="card stat"><div className="v">{stats.plan.answered}/{stats.plan.total}</div><div className="l">{stats.plan.name} plan</div></div>
         <div className="card stat"><div className="v">{t.answered}</div><div className="l">answered</div></div>
         <div className="card stat"><div className="v">{t.accuracy ?? "–"}{t.accuracy !== null && "%"}</div><div className="l">accuracy</div></div>
         <div className="card stat"><div className="v">{t.streak}</div><div className="l">streak</div></div>
@@ -92,22 +85,6 @@ export default function DashboardPage() {
               <span style={{ color: weekDelta >= 0 ? "var(--good)" : "var(--bad)", fontWeight: 700 }}>
                 {" "}{weekDelta >= 0 ? "▲" : "▼"} {Math.abs(weekDelta)} pts
               </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="card" style={{ marginBottom: 14 }}>
-        <div className="row" style={{ alignItems: "flex-start" }}>
-          <Dolphin size={56} mood={analysis ? "happy" : "think"} />
-          <div style={{ flex: 1 }}>
-                        <p style={{ margin: 0, lineHeight: 1.55, fontSize: 15 }}>
-              {analysis?.text ?? (analysisError ? "Unavailable" : "…")}
-            </p>
-            {analysis?.source === "llm" && (
-              <p className="small muted" style={{ margin: "8px 0 0" }}>
-                {analysis.source === "llm" ? "AI" : ""}
-              </p>
             )}
           </div>
         </div>
@@ -177,13 +154,6 @@ export default function DashboardPage() {
               rows={weekly.filter((w) => w.attempts).map((w) => [w.week, w.attempts, `${w.accuracy}%`])} />
           </section>
         </div>
-      )}
-
-      {graph && (
-        <section className="card" style={{ marginTop: 14 }}>
-          <h2 className="h2">Roadmap</h2>
-          <TopicGraph graph={graph} />
-        </section>
       )}
 
       <BottomNav />

@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -34,6 +36,17 @@ def _progress(db: Session, session: QuizSession | None) -> dict | None:
     }
 
 
+def _review_card(db: Session, user_id: int, plan: str, today: date, reviews: list[QuizSession]) -> dict:
+    """Today's latest review set, or the questions now due if it's done (misses join the same day)."""
+    latest = _progress(db, reviews[-1]) if reviews else None
+    if latest and latest["answered"] < latest["total"]:
+        return latest
+    due = len(due_review_question_ids(db, user_id, plan, today))
+    if latest and not due:
+        return latest
+    return {"session_id": None, "total": due, "answered": 0, "correct": 0}
+
+
 @router.get("/home")
 def home(user: User = Depends(current_user), db: Session = Depends(get_db)):
     today = local_today(user.timezone)
@@ -46,7 +59,7 @@ def home(user: User = Depends(current_user), db: Session = Depends(get_db)):
         )
     )
     daily = next((s for s in sessions if s.mode == "daily"), None)
-    review = next((s for s in sessions if s.mode == "review"), None)
+    reviews = [s for s in sessions if s.mode == "review"]
     extras = [s for s in sessions if s.mode == "extra"]
 
     progress = [p for p in (_progress(db, s) for s in sessions) if p]
@@ -57,8 +70,7 @@ def home(user: User = Depends(current_user), db: Session = Depends(get_db)):
         "today": today.isoformat(),
         "streak": streak(db, user.id, today),
         "daily": _progress(db, daily) or {"session_id": None, "total": user.daily_goal, "answered": 0, "correct": 0},
-        "review": _progress(db, review)
-        or {"session_id": None, "total": len(due_review_question_ids(db, user.id, plan, today)), "answered": 0, "correct": 0},
+        "review": _review_card(db, user.id, plan, today, reviews),
         "extra": [_progress(db, s) for s in extras],
         "resume": unfinished,
     }

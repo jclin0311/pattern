@@ -44,10 +44,10 @@ def seed(db: Session, questions: Sequence[question_schema.Question] = QUESTIONS)
     for slug, question in existing.items():
         question.status = "published" if slug in wanted else "retired"
     retagged = False
-    for q in questions:
+    for position, q in enumerate(questions):
         if q.slug in existing:
             question = existing[q.slug]
-            question.source_url, question.ref = q.source_url, q.ref
+            question.source_url, question.ref, question.position = q.source_url, q.ref, position
             current = [t.topic_id for t in question.topics]
             if current[:1] != list(q.topics[:1]) or set(current) != set(q.topics):
                 question.topics.clear()
@@ -68,6 +68,7 @@ def seed(db: Session, questions: Sequence[question_schema.Question] = QUESTIONS)
             criterion=q.criterion,
             hint=q.hint,
             source_url=q.source_url,
+            position=position,
         )
         question.topics = [
             QuestionTopic(topic_id=t, is_primary=(i == 0)) for i, t in enumerate(q.topics)

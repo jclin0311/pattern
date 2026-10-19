@@ -19,8 +19,9 @@ from app.question_bank.seed import seed
 from app.question_bank.route_questions import QUESTIONS
 from fixtures import pilot_bank
 
-# The real bank plus a fixture that stocks every topic.
-FULL_BANK = (*pilot_bank.QUESTIONS, *QUESTIONS)
+# The real bank plus a fixture that stocks every topic, minus problems the bank already has.
+_ROUTE_KEYS = {q.slug for q in QUESTIONS} | {q.number for q in QUESTIONS if q.number}
+FULL_BANK = (*(q for q in pilot_bank.QUESTIONS if not {q.slug, q.number} & _ROUTE_KEYS), *QUESTIONS)
 
 
 class FakeClock:

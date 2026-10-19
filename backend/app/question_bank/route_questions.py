@@ -6,13 +6,26 @@ Problems rated ≤ 1700 or unrated, one module per route step, in step order.
 from collections import Counter
 from collections.abc import Sequence
 
-from . import step4_tree_dfs, step5_grid_dfs
+from . import (
+    step1_sliding_window,
+    step2_binary_search,
+    step3_data_structures,
+    step4_tree_dfs,
+    step5_grid_dfs,
+    step6_backtracking,
+    step7_dp,
+)
 from .question_schema import Question
 from .topic_graph import TOPICS
 
 QUESTIONS: tuple[Question, ...] = (
+    *step1_sliding_window.QUESTIONS,
+    *step2_binary_search.QUESTIONS,
+    *step3_data_structures.QUESTIONS,
     *step4_tree_dfs.QUESTIONS,
     *step5_grid_dfs.QUESTIONS,
+    *step6_backtracking.QUESTIONS,
+    *step7_dp.QUESTIONS,
 )
 
 

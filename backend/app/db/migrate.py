@@ -12,6 +12,7 @@ from .models import ReviewItem
 COLUMNS = [
     *((t, "plan", "VARCHAR(10) NOT NULL DEFAULT 'topic'") for t in ("users", "quiz_sessions", "attempts", "review_items")),
     ("questions", "ref", "VARCHAR(20)"),
+    ("questions", "position", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 

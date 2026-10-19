@@ -141,6 +141,7 @@ export interface DashboardStats {
   topic_accuracy: { topic: string; name: string; attempts: number; correct: number; accuracy: number }[];
   per_day: { date: string; answered: number; correct: number }[];
   weekly_topic_accuracy: Record<string, { week: string; attempts: number; accuracy: number | null }[]>;
+  plan: { id: Plan; name: string; answered: number; total: number };
 }
 
 export interface TopicGraph {
@@ -149,8 +150,8 @@ export interface TopicGraph {
 }
 
 export const PLANS: { id: Plan; name: string; note: string }[] = [
-  { id: "topic", name: "Topic", note: "One pattern at a time" },
-  { id: "random", name: "Random", note: "Mixed, unlabeled" },
+  { id: "topic", name: "Topic", note: "Core route, mixed" },
+  { id: "random", name: "Random", note: "One per topic" },
   { id: "sprint", name: "Sprint", note: "Hot 100, then Interview 150" },
 ];
 

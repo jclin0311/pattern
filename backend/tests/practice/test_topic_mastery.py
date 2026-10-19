@@ -7,3 +7,9 @@ def test_mastery_is_smoothed_and_recency_weighted():
     recent_good, _ = compute_mastery([True, True, True, False, False, False])
     recent_bad, _ = compute_mastery([False, False, False, True, True, True])
     assert recent_good > recent_bad
+
+
+def test_mastery_counts_every_answer():
+    # 20 recent correct answers can't hide 30 older misses.
+    m, _ = compute_mastery([True] * 20 + [False] * 30)
+    assert 0.45 < m < 0.6
