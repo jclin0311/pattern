@@ -112,7 +112,43 @@ The frontend runs on Netlify, the API on Cloud Run and the database on Neon.
 | Change | How |
 |---|---|
 | Frontend | `git push` to `main`; Netlify redeploys automatically. |
-| Backend or question bank | `gcloud run deploy pattern-api --source backend --region us-east4`. Env vars and secrets carry over, and the startup seed writes new questions to Neon. |
+| Backend or question bank | `git push` to `main`; [CI](.github/workflows/ci.yml) runs the tests and then deploys `pattern-api` to Cloud Run. Env vars and secrets carry over, and the startup seed writes new questions to Neon. |
+
+CI also runs the backend tests and the frontend type check and build on every pull
+request. To deploy the backend by hand, run
+`gcloud run deploy pattern-api --source backend --region us-east4`, or start the CI
+workflow from the Actions tab.
+
+Netlify and CI start together on a push, so when a change needs a new API field, the
+frontend can go live a minute before the backend does.
+
+### One-time setup for CI deploys
+
+GitHub signs in to Google Cloud with Workload Identity Federation, so no key is stored
+in GitHub. Run once:
+
+```bash
+PROJECT=pattern-511921 NUM=1074175034544 REPO=jclin0311/pattern
+SA=github-deployer@$PROJECT.iam.gserviceaccount.com
+gcloud iam service-accounts create github-deployer --project $PROJECT
+for role in run.admin cloudbuild.builds.editor artifactregistry.writer storage.admin serviceusage.serviceUsageConsumer; do
+  gcloud projects add-iam-policy-binding $PROJECT --member serviceAccount:$SA --role roles/$role --condition None
+done
+# Deploying runs the service as the default compute account.
+gcloud iam service-accounts add-iam-policy-binding $NUM-compute@developer.gserviceaccount.com \
+  --member serviceAccount:$SA --role roles/iam.serviceAccountUser --project $PROJECT
+gcloud iam workload-identity-pools create github --location global --project $PROJECT
+gcloud iam workload-identity-pools providers create-oidc github --location global \
+  --workload-identity-pool github --issuer-uri https://token.actions.githubusercontent.com \
+  --attribute-mapping google.subject=assertion.sub,attribute.repository=assertion.repository \
+  --attribute-condition "assertion.repository=='$REPO'" --project $PROJECT
+gcloud iam service-accounts add-iam-policy-binding $SA --role roles/iam.workloadIdentityUser \
+  --member principalSet://iam.googleapis.com/projects/$NUM/locations/global/workloadIdentityPools/github/attribute.repository/$REPO \
+  --project $PROJECT
+gh variable set GCP_WORKLOAD_IDENTITY_PROVIDER --repo $REPO \
+  --body projects/$NUM/locations/global/workloadIdentityPools/github/providers/github
+gh variable set GCP_DEPLOY_SERVICE_ACCOUNT --repo $REPO --body $SA
+```
 
 ## Study plans
 
