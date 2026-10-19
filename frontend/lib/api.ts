@@ -150,8 +150,8 @@ export interface TopicGraph {
 }
 
 export const PLANS: { id: Plan; name: string; note: string }[] = [
-  { id: "topic", name: "Topic", note: "Core route, mixed" },
-  { id: "random", name: "Random", note: "One per topic" },
+  { id: "topic", name: "Topic", note: "Core route, basic" },
+  { id: "random", name: "Random", note: "All topics" },
   { id: "sprint", name: "Sprint", note: "Hot 100, then Interview 150" },
 ];
 
