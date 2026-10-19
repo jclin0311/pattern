@@ -4,6 +4,8 @@ A web app for learning to recognize algorithm patterns through short multiple-ch
 quizzes: each question shows four approaches, you pick the best one, and a Socratic
 explanation shows why each approach wins or loses.
 
+**Try it:** [patterntap.netlify.app](https://patterntap.netlify.app/)
+
 <p align="center"><img src="docs/20261019-demo.gif" alt="Demo: Today, two practice questions (one with a hint), the Progress page with weekly accuracy by topic, and Profile with mastery and plan choice" width="360"></p>
 
 ```
